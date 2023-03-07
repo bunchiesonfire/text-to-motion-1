@@ -1,5 +1,5 @@
 import os
-
+import json
 from os.path import join as pjoin
 
 import utils.paramUtil as paramUtil
@@ -20,13 +20,50 @@ def plot_t2m(data, save_dir, captions):
     for i, (caption, joint_data) in enumerate(zip(captions, data)):
         joint = recover_from_ric(torch.from_numpy(joint_data).float(), opt.joints_num).numpy()
         save_path = '%s_%02d'%(save_dir, i)
-        # np.save(save_path + '.npy', joint)
-        # plot_3d_motion(save_path + '.mp4', paramUtil.t2m_kinematic_chain, joint, title=caption, fps=20)
+        #np.save(save_path + '.npy', joint)
+        #plot_3d_motion(save_path + '.mp4', paramUtil.t2m_kinematic_chain, joint, title=caption, fps=20)
 
         joint = motion_temporal_filter(joint, sigma=1)
+        smpl_to_heat_mapping = [1,4,7,10,13,16,14,17,19,21,15,18,20,22,2,5,8,11,3,6,9,12]
+        name_list=[("heat_Root",[]),
+                   ("heat_Hips",[]),
+                   ("heat_Spine",[]),("heat_Spine1",[]),("heat_Spine2",[]),("heat_Neck",[]),("heat_Head",[]),
+                   ("heat_Shoulder_l",[]),("heat_UpperArm_l",[]),("heat_LowerArm_l",[]),("heat_Hand_l",[]),
+                   ("heat_Shoulder_r",[]),("heat_UpperArm_r",[]),("heat_LowerArm_r",[]),("heat_Hand_r",[]),
+                   ("heat_UpLeg_l",[]),("heat_Leg_l",[]),("heat_Foot_l",[]),("heat_ToeBase_l",[]),
+                   ("heat_UpLeg_r",[]),("heat_Leg_r",[]),("heat_Foot_r",[]), ("heat_ToeBase_r",[])]
+        
+        for count,joint_list in enumerate(joint.tolist()):
+            time_and_point=[(count)/20]
+            time_and_point.append((1,0,0,2e-7))
+            name_list[0][1].append(time_and_point)
+            for i in range(22):
+                rotation = get_rotation(joint_list[i][0],joint_list[i][1],joint_list[i][2])
+                index = smpl_to_heat_mapping[i]
+                
+                time_and_point=[(count)/20]
+                time_and_point.append(rotation)
+                name_list[index][1].append(time_and_point) 
+        
+        tracks=[]
+        for part in name_list:
+            track = {"name":part[0],"attr":"rotation","keys":part[1]}
+            tracks.append(track)
+        full_dict= {"version":"1.0.0", "tracks":tracks}
+
+
         np.save(save_path + '_a.npy', joint)
+        with open(pjoin(joint_save_path, 'sample%02d.json'%t), "w") as outfile:
+            json.dump(full_dict, outfile, separators=(',', ':'))
         plot_3d_motion(save_path + '_a.mp4', paramUtil.t2m_kinematic_chain, joint, title=caption, fps=20)
 
+def get_rotation(x,y,z):
+    qx = math.sin(x/2) * math.cos(y/2) * math.cos(z/2) - math.cos(x/2) * math.sin(y/2) * math.sin(z/2)
+    qy = math.cos(x/2) * math.sin(y/2) * math.cos(z/2) + math.sin(x/2) * math.cos(y/2) * math.sin(z/2)
+    qz = math.cos(x/2) * math.cos(y/2) * math.sin(z/2) - math.sin(x/2) * math.sin(y/2) * math.cos(z/2)
+    qw = math.cos(x/2) * math.cos(y/2) * math.cos(z/2) + math.sin(x/2) * math.sin(y/2) * math.sin(z/2)
+
+    return (qw, qx, qy, qz)
 
 def loadDecompModel(opt):
     movement_enc = MovementConvEncoder(dim_pose - 4, opt.dim_movement_enc_hidden, opt.dim_movement_latent)
@@ -132,7 +169,7 @@ if __name__ == '__main__':
 
     # if opt.est_length:
     estimator = MotionLenEstimatorBiGRU(dim_word, dim_pos_ohot, 512, num_classes)
-    checkpoints = torch.load(pjoin(opt.checkpoints_dir, opt.dataset_name, 'length_est_bigru', 'model', 'latest.tar'), map_location=torch.device("cuda"))
+    checkpoints = torch.load(pjoin(opt.checkpoints_dir, opt.dataset_name, 'length_est_bigru', 'model', 'latest.tar'), map_location='cuda:0')
     estimator.load_state_dict(checkpoints['estimator'])
     estimator.to(opt.device)
     estimator.eval()
@@ -177,6 +214,8 @@ if __name__ == '__main__':
                 sub_dict['att_wgts'] = att_wgts.cpu().numpy()
                 sub_dict['m_len'] = m_lens[0]
                 item_dict['result_%02d'%t] = sub_dict
+                #print(pred_motions.cpu().numpy())
+                #print(att_wgts.cpu().numpy())
             result_dict[name] = item_dict
 
     print('Animation Results')
@@ -189,9 +228,13 @@ if __name__ == '__main__':
         os.makedirs(joint_save_path, exist_ok=True)
         os.makedirs(animation_save_path, exist_ok=True)
         for t in range(opt.repeat_times):
+
             sub_dict = item['result_%02d'%t]
             motion = sub_dict['motion']
             att_wgts = sub_dict['att_wgts']
             np.save(pjoin(joint_save_path, 'gen_motion_%02d_L%03d.npy' % (t, motion.shape[1])), motion)
+
+
+            print(captions)
             # np.save(pjoin(joint_save_path, 'att_wgt_%02d_L%03d.npy' % (t, motion.shape[1])), att_wgts)
             plot_t2m(motion, pjoin(animation_save_path, 'gen_motion_%02d_L%03d' % (t, motion.shape[1])), captions)

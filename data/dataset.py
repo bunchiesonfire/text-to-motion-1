@@ -33,14 +33,15 @@ class Text2MotionDataset(data.Dataset):
         with cs.open(split_file, 'r') as f:
             for line in f.readlines():
                 id_list.append(line.strip())
-
         new_name_list = []
         length_list = []
-        for name in tqdm(id_list):
+        for name in id_list:
             try:
                 motion = np.load(pjoin(opt.motion_dir, name + '.npy'))
                 if (len(motion)) < min_motion_len or (len(motion) >= 200):
+                    print("skip")
                     continue
+                print("not skip")
                 text_data = []
                 flag = False
                 with cs.open(pjoin(opt.text_dir, name + '.txt')) as f:
@@ -84,10 +85,12 @@ class Text2MotionDataset(data.Dataset):
                     new_name_list.append(name)
                     length_list.append(len(motion))
             except:
+                print("motion not exist")
                 # Some motion may not exist in KIT dataset
                 pass
 
-
+        print(new_name_list)
+        print(length_list)
         name_list, length_list = zip(*sorted(zip(new_name_list, length_list), key=lambda x: x[1]))
 
         if opt.is_train:

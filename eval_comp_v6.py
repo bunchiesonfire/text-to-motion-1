@@ -89,25 +89,25 @@ if __name__ == '__main__':
     os.makedirs(opt.joint_dir, exist_ok=True)
     os.makedirs(opt.animation_dir, exist_ok=True)
 
-    if opt.dataset_name == 't2m':
-        opt.data_root = './dataset/HumanML3D'
-        opt.motion_dir = pjoin(opt.data_root, 'new_joint_vecs')
-        opt.text_dir = pjoin(opt.data_root, 'texts')
-        opt.joints_num = 22
-        dim_pose = 263
-        dim_word = 300
-        dim_pos_ohot = len(POS_enumerator)
-        num_classes = 200 // opt.unit_length
+    #if opt.dataset_name == 't2m':
+    opt.data_root = '.\\dataset\\HumanML3D'
+    opt.motion_dir = pjoin(opt.data_root, 'new_joint_vecs')
+    opt.text_dir = pjoin(opt.data_root, 'texts')
+    opt.joints_num = 22
+    dim_pose = 263
+    dim_word = 300
+    dim_pos_ohot = len(POS_enumerator)
+    num_classes = 200 // opt.unit_length
 
-        mean = np.load(pjoin(opt.meta_dir, 'mean.npy'))
-        std = np.load(pjoin(opt.meta_dir, 'std.npy'))
+    mean = np.load(pjoin(opt.meta_dir, 'mean.npy'))
+    std = np.load(pjoin(opt.meta_dir, 'std.npy'))
 
-        w_vectorizer = WordVectorizer('./glove', 'our_vab')
-        split_file = pjoin(opt.data_root, opt.split_file)
-        opt.max_motion_length = 196
+    w_vectorizer = WordVectorizer('.\\glove', 'our_vab')
+    split_file = pjoin(opt.data_root, opt.split_file)
+    opt.max_motion_length = 196
 
-    else:
-        raise KeyError('Dataset Does Not Exist')
+    #else:
+    #    raise KeyError('Dataset Does Not Exist')
 
 
     text_enc, seq_pri, seq_dec, att_layer, mov_enc, mov_dec = build_models(opt)
@@ -115,6 +115,11 @@ if __name__ == '__main__':
 
     trainer = CompTrainerV6(opt, text_enc, seq_pri, seq_dec, att_layer, mov_dec, mov_enc=mov_enc)
 
+    print(opt)
+    print(mean)
+    print(std)
+    print(split_file)
+    print(w_vectorizer)
     dataset = Text2MotionDataset(opt, mean, std, split_file, w_vectorizer)
     dataset.reset_max_len(opt.start_mov_len * opt.unit_length)
     epoch, it, sub_ep, schedule_len = trainer.load(pjoin(opt.model_dir, opt.which_epoch + '.tar'))
